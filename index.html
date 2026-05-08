@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Shop Projects</title>
+
+<style>
+body {
+  margin: 0;
+  background: #111;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+h1 {
+  text-align: center;
+  font-size: 42px;
+  margin: 20px 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 18px;
+  border-bottom: 1px solid #333;
+  font-size: 22px;
+}
+
+th {
+  background: #222;
+  text-align: left;
+}
+
+td[contenteditable] {
+  outline: none;
+}
+
+select {
+  font-size: 20px;
+  padding: 6px;
+}
+
+.in-progress { background: #2ecc71; color:#000; }
+.not-started { background: #e74c3c; color:#fff; }
+.blocked { background: #f1c40f; color:#000; }
+.complete { background: #3498db; color:#fff; }
+
+button {
+  margin: 20px;
+  font-size: 20px;
+  padding: 10px 16px;
+}
+
+.delete {
+  cursor: pointer;
+  color: #ff6666;
+  font-size: 24px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Shop Projects</h1>
+
+<table id="board">
+  <thead>
+    <tr>
+      <th>Project</th>
+      <th>Status</th>
+      <th>Materials Needed</th>
+      <th>Notes</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<button onclick="addRow()">➕ Add Project</button>
+
+<script>
+const KEY = "shop-projects";
+
+function save() {
+  const data = [];
+  document.querySelectorAll("tbody tr").forEach(tr => {
+    data.push({
+      project: tr.children[0].innerText,
+      status: tr.children[1].querySelector("select").value,
+      materials: tr.children[2].innerText,
+      notes: tr.children[3].innerText
+    });
+  });
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+function load() {
+  const data = JSON.parse(localStorage.getItem(KEY)) || [];
+  data.forEach(addRowFromData);
+}
+
+function statusSelect(value="not-started") {
+  return `
+    <select class="${value}" onchange="this.className=this.value; save()">
+      <option value="not-started">Not Started</option>
+      <option value="in-progress">In Progress</option>
+      <option value="blocked">Blocked</option>
+      <option value="complete">Complete</option>
+    </select>`;
+}
+
+function addRowFromData(d = {}) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td contenteditable>${d.project || ""}</td>
+    <td>${statusSelect(d.status)}</td>
+    <td contenteditable>${d.materials || ""}</td>
+    <td contenteditable>${d.notes || ""}</td>
+    <td class="delete" onclick="this.parentElement.remove(); save()">✖</td>
+  `;
+  document.querySelector("tbody").appendChild(tr);
+  tr.querySelectorAll('[contenteditable], select').forEach(e =>
+    e.addEventListener("input", save)
+  );
+}
+
+function addRow() {
+  addRowFromData();
+  save();
+}
+
+load();
+</script>
+
+</body>
+</html>
