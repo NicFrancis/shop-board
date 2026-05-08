@@ -12,12 +12,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Title */
 h1 {
   text-align: center;
   font-size: 42px;
   margin: 20px 0;
 }
 
+/* Table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -34,13 +36,25 @@ th {
   text-align: left;
 }
 
-td[contenteditable] {
-  outline: none;
+/* Number column */
+.number {
+  width: 60px;
+  text-align: center;
+  font-weight: bold;
+  color: #ccc;
 }
 
+/* Editable cells */
+td[contenteditable] {
+  outline: none;
+  cursor: text;
+}
+
+/* Status select */
 select {
   font-size: 20px;
   padding: 6px;
+  cursor: pointer;
 }
 
 .in-progress { background: #2ecc71; color:#000; }
@@ -48,16 +62,27 @@ select {
 .blocked { background: #f1c40f; color:#000; }
 .complete { background: #3498db; color:#fff; }
 
+/* Buttons */
 button {
   margin: 20px;
   font-size: 20px;
   padding: 10px 16px;
 }
 
+/* Delete */
 .delete {
   cursor: pointer;
   color: #ff6666;
   font-size: 24px;
+}
+
+/* Drag styling */
+tr {
+  cursor: grab;
+}
+
+tr.dragging {
+  opacity: 0.5;
 }
 </style>
 </head>
@@ -69,8 +94,10 @@ button {
 <table id="board">
   <thead>
     <tr>
+      <th class="number">#</th>
       <th>Project</th>
       <th>Status</th>
+      <th>Description</th>
       <th>Materials Needed</th>
       <th>Notes</th>
       <th></th>
@@ -83,15 +110,19 @@ button {
 
 <script>
 const KEY = "shop-projects";
+const tbody = document.querySelector("tbody");
+
+/* ---------- Save / Load ---------- */
 
 function save() {
   const data = [];
   document.querySelectorAll("tbody tr").forEach(tr => {
     data.push({
-      project: tr.children[0].innerText,
-      status: tr.children[1].querySelector("select").value,
-      materials: tr.children[2].innerText,
-      notes: tr.children[3].innerText
+      project: tr.children[1].innerText,
+      status: tr.children[2].querySelector("select").value,
+      description: tr.children[3].innerText,
+      materials: tr.children[4].innerText,
+      notes: tr.children[5].innerText
     });
   });
   localStorage.setItem(KEY, JSON.stringify(data));
@@ -100,11 +131,15 @@ function save() {
 function load() {
   const data = JSON.parse(localStorage.getItem(KEY)) || [];
   data.forEach(addRowFromData);
+  renumber();
 }
+
+/* ---------- Row Creation ---------- */
 
 function statusSelect(value="not-started") {
   return `
-    <select class="${value}" onchange="this.className=this.value; save()">
+    <select class="${value}"
+      onchange="this.className=this.value; save()">
       <option value="not-started">Not Started</option>
       <option value="in-progress">In Progress</option>
       <option value="blocked">Blocked</option>
@@ -114,22 +149,66 @@ function statusSelect(value="not-started") {
 
 function addRowFromData(d = {}) {
   const tr = document.createElement("tr");
+  tr.draggable = true;
+
   tr.innerHTML = `
+    <td class="number"></td>
     <td contenteditable>${d.project || ""}</td>
     <td>${statusSelect(d.status)}</td>
+    <td contenteditable>${d.description || ""}</td>
     <td contenteditable>${d.materials || ""}</td>
     <td contenteditable>${d.notes || ""}</td>
-    <td class="delete" onclick="this.parentElement.remove(); save()">✖</td>
+    <td class="delete" onclick="this.parentElement.remove(); renumber(); save()">✖</td>
   `;
-  document.querySelector("tbody").appendChild(tr);
-  tr.querySelectorAll('[contenteditable], select').forEach(e =>
-    e.addEventListener("input", save)
-  );
+
+  tbody.appendChild(tr);
+
+  tr.querySelectorAll('[contenteditable], select')
+    .forEach(el => el.addEventListener("input", save));
+
+  enableDrag(tr);
 }
 
 function addRow() {
   addRowFromData();
+  renumber();
   save();
+}
+
+/* ---------- Numbering ---------- */
+
+function renumber() {
+  document.querySelectorAll("tbody tr").forEach((tr, i) => {
+    tr.querySelector(".number").innerText = i + 1;
+  });
+}
+
+/* ---------- Drag & Drop ---------- */
+
+let draggedRow = null;
+
+function enableDrag(row) {
+  row.addEventListener("dragstart", () => {
+    draggedRow = row;
+    row.classList.add("dragging");
+  });
+
+  row.addEventListener("dragend", () => {
+    row.classList.remove("dragging");
+    draggedRow = null;
+    renumber();
+    save();
+  });
+
+  row.addEventListener("dragover", e => {
+    e.preventDefault();
+    const target = e.currentTarget;
+    if (target !== draggedRow) {
+      const rect = target.getBoundingClientRect();
+      const next = (e.clientY - rect.top) > rect.height / 2;
+      tbody.insertBefore(draggedRow, next ? target.nextSibling : target);
+    }
+  });
 }
 
 load();
