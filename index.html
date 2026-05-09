@@ -124,7 +124,18 @@ async function load() {
 }
 
 /* -------- Save -------- */
+
+let saving = false;
+let saveQueued = false;
+
 async function save() {
+  if (saving) {
+    saveQueued = true;
+    return;
+  }
+
+  saving = true;
+
   const data = [];
   document.querySelectorAll("tbody tr").forEach((tr, i) => {
     data.push({
@@ -142,7 +153,15 @@ async function save() {
     method: "POST",
     body: JSON.stringify(data)
   });
+
+  saving = false;
+
+  if (saveQueued) {
+    saveQueued = false;
+    save();
+  }
 }
+
 
 /* -------- Helpers -------- */
 function statusSelect(val="not-started") {
