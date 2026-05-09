@@ -12,14 +12,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Title */
 h1 {
   text-align: center;
   font-size: 42px;
   margin: 20px 0;
 }
 
-/* Table */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -36,7 +34,6 @@ th {
   text-align: left;
 }
 
-/* Number column */
 .number {
   width: 60px;
   text-align: center;
@@ -44,17 +41,14 @@ th {
   color: #ccc;
 }
 
-/* Editable cells */
 td[contenteditable] {
   outline: none;
   cursor: text;
 }
 
-/* Status select */
 select {
   font-size: 20px;
   padding: 6px;
-  cursor: pointer;
 }
 
 .in-progress { background: #2ecc71; color:#000; }
@@ -62,21 +56,18 @@ select {
 .blocked { background: #f1c40f; color:#000; }
 .complete { background: #3498db; color:#fff; }
 
-/* Buttons */
 button {
   margin: 20px;
   font-size: 20px;
   padding: 10px 16px;
 }
 
-/* Delete */
 .delete {
   cursor: pointer;
   color: #ff6666;
   font-size: 24px;
 }
 
-/* Drag styling */
 tr {
   cursor: grab;
 }
@@ -109,15 +100,35 @@ tr.dragging {
 <button onclick="addRow()">➕ Add Project</button>
 
 <script>
-const KEY = "shop-projects";
+const API_URL = "https://script.google.com/macros/s/AKfycbz8s4wN_m9G6hddpSdpqPPSeqxmDXKQCW6IYOUJAkMMRSDByneo-qqepUmj5iNQ0geO/exec";
+
 const tbody = document.querySelector("tbody");
+let draggedRow = null;
 
-/* ---------- Save / Load ---------- */
+/* ---------- Load from Google Sheet ---------- */
+async function load() {
+  const res = await fetch(API_URL);
+  const data = await res.json();
 
-function save() {
+  tbody.innerHTML = "";
+  data.forEach(row => addRowFromData({
+    order: row[0],
+    project: row[1],
+    status: row[2],
+    description: row[3],
+    materials: row[4],
+    notes: row[5]
+  }));
+
+  renumber();
+}
+
+/* ---------- Save to Google Sheet ---------- */
+async function save() {
   const data = [];
-  document.querySelectorAll("tbody tr").forEach(tr => {
+  document.querySelectorAll("tbody tr").forEach((tr, i) => {
     data.push({
+      order: i + 1,
       project: tr.children[1].innerText,
       status: tr.children[2].querySelector("select").value,
       description: tr.children[3].innerText,
@@ -125,21 +136,17 @@ function save() {
       notes: tr.children[5].innerText
     });
   });
-  localStorage.setItem(KEY, JSON.stringify(data));
+
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify(data)
+  });
 }
 
-function load() {
-  const data = JSON.parse(localStorage.getItem(KEY)) || [];
-  data.forEach(addRowFromData);
-  renumber();
-}
-
-/* ---------- Row Creation ---------- */
-
+/* ---------- Helpers ---------- */
 function statusSelect(value="not-started") {
   return `
-    <select class="${value}"
-      onchange="this.className=this.value; save()">
+    <select class="${value}" onchange="this.className=this.value; save()">
       <option value="not-started">Not Started</option>
       <option value="in-progress">In Progress</option>
       <option value="blocked">Blocked</option>
@@ -175,8 +182,6 @@ function addRow() {
   save();
 }
 
-/* ---------- Numbering ---------- */
-
 function renumber() {
   document.querySelectorAll("tbody tr").forEach((tr, i) => {
     tr.querySelector(".number").innerText = i + 1;
@@ -184,9 +189,6 @@ function renumber() {
 }
 
 /* ---------- Drag & Drop ---------- */
-
-let draggedRow = null;
-
 function enableDrag(row) {
   row.addEventListener("dragstart", () => {
     draggedRow = row;
@@ -202,12 +204,11 @@ function enableDrag(row) {
 
   row.addEventListener("dragover", e => {
     e.preventDefault();
-    const target = e.currentTarget;
-    if (target !== draggedRow) {
-      const rect = target.getBoundingClientRect();
-      const next = (e.clientY - rect.top) > rect.height / 2;
-      tbody.insertBefore(draggedRow, next ? target.nextSibling : target);
-    }
+    if (row === draggedRow) return;
+
+    const rect = row.getBoundingClientRect();
+    const next = (e.clientY - rect.top) > rect.height / 2;
+    tbody.insertBefore(draggedRow, next ? row.nextSibling : row);
   });
 }
 
