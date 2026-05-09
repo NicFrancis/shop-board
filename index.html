@@ -88,14 +88,18 @@ async function save() {
 }
 
 /* -------- ROWS -------- */
-function statusSel(v="not-started"){
-  return `<select class="${v}" onchange="this.className=this.value;save()">
-<option value="not-started">Not Started</option>
-<option value="in-progress">In Progress</option>
-<option value="blocked">Blocked</option>
-<option value="complete">Complete</option>
-</select>`;
+
+function statusSel(v = "not-started") {
+  return `
+    <select class="${v}" onchange="this.className=this.value; save()">
+      <option value="not-started">Not Started</option>
+      <option value="in-progress">In Progress</option>
+      <option value="delayed">Delayed</option>
+      <option value="complete">Complete</option>
+    </select>
+  `;
 }
+
 
 function addRowFromData(d={}){
   const tr=document.createElement("tr");
