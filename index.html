@@ -43,10 +43,9 @@ th {
 
 td[contenteditable] {
   outline: none;
-  cursor: text;
 }
 
-select {
+select, input[type="date"] {
   font-size: 20px;
   padding: 6px;
 }
@@ -82,48 +81,49 @@ tr.dragging {
 
 <h1>Shop Projects</h1>
 
-<table id="board">
+<table>
   <thead>
     <tr>
       <th class="number">#</th>
       <th>Project</th>
       <th>Status</th>
       <th>Description</th>
+      <th>Due By</th>
       <th>Materials Needed</th>
       <th>Notes</th>
       <th></th>
     </tr>
   </thead>
-  <tbody></tbody>
+  <tbody id="tbody"></tbody>
 </table>
 
 <button onclick="addRow()">➕ Add Project</button>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbz8s4wN_m9G6hddpSdpqPPSeqxmDXKQCW6IYOUJAkMMRSDByneo-qqepUmj5iNQ0geO/exec";
-
-const tbody = document.querySelector("tbody");
+const tbody = document.getElementById("tbody");
 let draggedRow = null;
 
-/* ---------- Load from Google Sheet ---------- */
+/* -------- Load -------- */
 async function load() {
   const res = await fetch(API_URL);
-  const data = await res.json();
-
+  const rows = await res.json();
   tbody.innerHTML = "";
-  data.forEach(row => addRowFromData({
-    order: row[0],
-    project: row[1],
-    status: row[2],
-    description: row[3],
-    materials: row[4],
-    notes: row[5]
+
+  rows.forEach(r => addRowFromData({
+    order: r[0],
+    project: r[1],
+    status: r[2],
+    description: r[3],
+    due: r[4],
+    materials: r[5],
+    notes: r[6]
   }));
 
   renumber();
 }
 
-/* ---------- Save to Google Sheet ---------- */
+/* -------- Save -------- */
 async function save() {
   const data = [];
   document.querySelectorAll("tbody tr").forEach((tr, i) => {
@@ -132,8 +132,9 @@ async function save() {
       project: tr.children[1].innerText,
       status: tr.children[2].querySelector("select").value,
       description: tr.children[3].innerText,
-      materials: tr.children[4].innerText,
-      notes: tr.children[5].innerText
+      due: tr.children[4].querySelector("input").value,
+      materials: tr.children[5].innerText,
+      notes: tr.children[6].innerText
     });
   });
 
@@ -143,10 +144,10 @@ async function save() {
   });
 }
 
-/* ---------- Helpers ---------- */
-function statusSelect(value="not-started") {
+/* -------- Helpers -------- */
+function statusSelect(val="not-started") {
   return `
-    <select class="${value}" onchange="this.className=this.value; save()">
+    <select class="${val}" onchange="this.className=this.value; save()">
       <option value="not-started">Not Started</option>
       <option value="in-progress">In Progress</option>
       <option value="blocked">Blocked</option>
@@ -154,23 +155,24 @@ function statusSelect(value="not-started") {
     </select>`;
 }
 
-function addRowFromData(d = {}) {
+function addRowFromData(d={}) {
   const tr = document.createElement("tr");
   tr.draggable = true;
 
   tr.innerHTML = `
     <td class="number"></td>
-    <td contenteditable>${d.project || ""}</td>
+    <td contenteditable>${d.project||""}</td>
     <td>${statusSelect(d.status)}</td>
-    <td contenteditable>${d.description || ""}</td>
-    <td contenteditable>${d.materials || ""}</td>
-    <td contenteditable>${d.notes || ""}</td>
+    <td contenteditable>${d.description||""}</td>
+    <td><input type="date" value="${d.due||""}"></td>
+    <td contenteditable>${d.materials||""}</td>
+    <td contenteditable>${d.notes||""}</td>
     <td class="delete" onclick="this.parentElement.remove(); renumber(); save()">✖</td>
   `;
 
   tbody.appendChild(tr);
 
-  tr.querySelectorAll('[contenteditable], select')
+  tr.querySelectorAll('[contenteditable], select, input')
     .forEach(el => el.addEventListener("input", save));
 
   enableDrag(tr);
@@ -188,7 +190,7 @@ function renumber() {
   });
 }
 
-/* ---------- Drag & Drop ---------- */
+/* -------- Drag -------- */
 function enableDrag(row) {
   row.addEventListener("dragstart", () => {
     draggedRow = row;
@@ -205,7 +207,6 @@ function enableDrag(row) {
   row.addEventListener("dragover", e => {
     e.preventDefault();
     if (row === draggedRow) return;
-
     const rect = row.getBoundingClientRect();
     const next = (e.clientY - rect.top) > rect.height / 2;
     tbody.insertBefore(draggedRow, next ? row.nextSibling : row);
@@ -214,6 +215,5 @@ function enableDrag(row) {
 
 load();
 </script>
-
 </body>
 </html>
