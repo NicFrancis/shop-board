@@ -2,263 +2,130 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Shop Board</title>
+<title>Shop Projects</title>
 
 <style>
-body {
-  margin: 0;
-  background: #111;
-  color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-h1 {
-  text-align: center;
-  font-size: 40px;
-  margin: 20px 0;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th, td {
-  padding: 14px;
-  border-bottom: 1px solid #333;
-  font-size: 20px;
-}
-
-th {
-  background: #222;
-}
-
-.number {
-  width: 40px;
-  text-align: center;
-  color: #aaa;
-  font-weight: bold;
-}
-
-select, input[type="date"] {
-  font-size: 18px;
-  padding: 4px;
-}
-
-.not-started { background: #e74c3c; }
-.in-progress { background: #2ecc71; color: #000; }
-.delayed { background: #f1c40f; color: #000; }
-.complete { background: #3498db; }
-
-.actions button,
-.actions span {
-  cursor: pointer;
-  font-size: 18px;
-  margin-right: 6px;
-}
-
-.archive-btn {
-  background: none;
-  border: none;
-  color: #fff;
-}
-
-.delete {
-  color: #ff6666;
-}
-
-tr.dragging {
-  opacity: 0.5;
-}
-
-button.add {
-  margin: 16px;
-  font-size: 18px;
-  padding: 8px 14px;
-}
+body { margin:0; background:#111; color:#fff; font-family:Arial,Helvetica,sans-serif; }
+h1 { text-align:center; font-size:42px; margin:20px 0; }
+table { width:100%; border-collapse:collapse; }
+th, td { padding:16px; border-bottom:1px solid #333; font-size:22px; }
+th { background:#222; }
+.number { width:50px; text-align:center; color:#aaa; font-weight:bold; }
+select, input[type="date"] { font-size:18px; padding:6px; }
+.in-progress { background:#2ecc71; color:#000; }
+.not-started { background:#e74c3c; }
+.blocked { background:#f1c40f; color:#000; }
+.complete { background:#3498db; }
+.delete { cursor:pointer; color:#ff6666; font-size:22px; }
+tr { cursor:grab; }
+tr.dragging { opacity:.5; }
+button { margin:20px; font-size:20px; padding:10px 16px; }
 </style>
 </head>
 
 <body>
-
-<h1>Shop Board</h1>
+<h1>Shop Projects</h1>
 
 <table>
 <thead>
 <tr>
-  <th>#</th>
-  <th>Project</th>
-  <th>Status</th>
-  <th>Description</th>
-  <th>Due By</th>
-  <th>Materials</th>
-  <th>Notes</th>
-  <th>Actions</th>
+<th>#</th><th>Project</th><th>Status</th><th>Description</th>
+<th>Due By</th><th>Materials Needed</th><th>Notes</th><th></th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
 </table>
 
-<button class="add" onclick="addRow()">➕ Add Job</button>
+<button onclick="addRow()">➕ Add Project</button>
 
 <script>
-/* ================= CONFIG ================= */
-const API_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE";
-const MODE = new URLSearchParams(window.location.search).get("mode") || "active";
-const IS_HISTORY = MODE === "history";
-/* ========================================== */
-
+const API_URL = "https://script.google.com/macros/s/AKfycbx0xs1UToRRtrQt9bggqFHzxl3XH12TGY9nVyjI0SObmOHJpRc4ttlJDgD2zdT1j7Mr/exec";
 const tbody = document.getElementById("tbody");
-let dragged = null;
+let dragged, saving=false, queued=false;
 
-/* ---------- STATUS SELECT ---------- */
-function statusSel(v = "not-started") {
-  return `
-    <select class="${v}">
-      <option value="not-started">Not Started</option>
-      <option value="in-progress">In Progress</option>
-      <option value="delayed">Delayed</option>
-      <option value="complete">Complete</option>
-      <option value="complete_archived" style="display:none">
-        Complete (Archived)
-      </option>
-    </select>
-  `;
-}
-
-/* ---------- LOAD (JSONP) ---------- */
+/* -------- JSONP LOAD -------- */
 function load() {
   window.loadData = function(rows) {
-    tbody.innerHTML = "";
-
-    rows
-      .filter(r =>
-        IS_HISTORY
-          ? r[2] === "complete_archived"
-          : r[2] !== "complete_archived"
-      )
-      .forEach(r => addRowFromData({
-        order: r[0],
-        project: r[1],
-        status: r[2],
-        description: r[3],
-        due: r[4],
-        materials: r[5],
-        notes: r[6]
-      }));
-
+    tbody.innerHTML="";
+    rows.forEach(r => addRowFromData({
+      order:r[0], project:r[1], status:r[2], description:r[3],
+      due:r[4], materials:r[5], notes:r[6]
+    }));
     renumber();
   };
 
-  const s = document.createElement("script");
-  s.src = `${API_URL}?callback=loadData&ts=${Date.now()}`;
+  const s=document.createElement("script");
+  s.src=`${API_URL}?callback=loadData&ts=${Date.now()}`;
   document.body.appendChild(s);
 }
 
-/* ---------- SAVE ---------- */
+/* -------- SAVE (NO‑CORS) -------- */
 async function save() {
-  if (IS_HISTORY) return;
+  if (saving) { queued=true; return; }
+  saving=true;
 
-  const data = [];
-  [...tbody.children].forEach((tr, i) => {
-    const sel = tr.querySelector("select");
+  const data=[];
+  [...tbody.children].forEach((tr,i)=>{
     data.push({
-      order: i + 1,
-      project: tr.children[1].innerText,
-      status: sel.value,
-      description: tr.children[3].innerText,
-      due: tr.children[4].querySelector("input").value,
-      materials: tr.children[5].innerText,
-      notes: tr.children[6].innerText
+      order:i+1,
+      project:tr.children[1].innerText,
+      status:tr.children[2].querySelector("select").value,
+      description:tr.children[3].innerText,
+      due:tr.children[4].querySelector("input").value,
+      materials:tr.children[5].innerText,
+      notes:tr.children[6].innerText
     });
   });
 
-  await fetch(API_URL, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify(data)
+  await fetch(API_URL,{
+    method:"POST",
+    mode:"no-cors",
+    body:JSON.stringify(data)
   });
+
+  saving=false;
+  if (queued) { queued=false; save(); }
 }
 
-/* ---------- ARCHIVE ---------- */
-function archiveRow(tr) {
-  const sel = tr.querySelector("select");
-  if (sel.value !== "complete") {
-    alert("Only completed jobs can be archived.");
-    return;
-  }
-
-  if (!confirm("Archive this job to History?")) return;
-
-  sel.value = "complete_archived";
-  sel.className = "complete";
-  save();
-  tr.remove();
-  renumber();
+/* -------- ROWS -------- */
+function statusSel(v="not-started"){
+  return `<select class="${v}" onchange="this.className=this.value;save()">
+<option value="not-started">Not Started</option>
+<option value="in-progress">In Progress</option>
+<option value="blocked">Blocked</option>
+<option value="complete">Complete</option>
+</select>`;
 }
 
-/* ---------- ROW ---------- */
-function addRowFromData(d = {}) {
-  const tr = document.createElement("tr");
-  tr.draggable = !IS_HISTORY;
-
-  tr.innerHTML = `
-    <td class="number"></td>
-    <td contenteditable="${!IS_HISTORY}">${d.project || ""}</td>
-    <td>${statusSel(d.status)}</td>
-    <td contenteditable="${!IS_HISTORY}">${d.description || ""}</td>
-    <td><input type="date" value="${d.due || ""}" ${IS_HISTORY ? "disabled" : ""}></td>
-    <td contenteditable="${!IS_HISTORY}">${d.materials || ""}</td>
-    <td contenteditable="${!IS_HISTORY}">${d.notes || ""}</td>
-    <td class="actions"></td>
-  `;
-
-  const actions = tr.querySelector(".actions");
-
-  if (!IS_HISTORY) {
-    const archive = document.createElement("button");
-    archive.innerText = "📦";
-    archive.className = "archive-btn";
-    archive.onclick = () => archiveRow(tr);
-    actions.appendChild(archive);
-
-    const del = document.createElement("span");
-    del.className = "delete";
-    del.innerText = "✖";
-    del.onclick = () => { tr.remove(); renumber(); save(); };
-    actions.appendChild(del);
-
-    tr.querySelectorAll("select, input, [contenteditable]").forEach(e =>
-      e.oninput = save
-    );
-
-    enableDrag(tr);
-  }
-
+function addRowFromData(d={}){
+  const tr=document.createElement("tr");
+  tr.draggable=true;
+  tr.innerHTML=`
+<td class="number"></td>
+<td contenteditable>${d.project||""}</td>
+<td>${statusSel(d.status)}</td>
+<td contenteditable>${d.description||""}</td>
+<td><input type="date" value="${d.due||""}"></td>
+<td contenteditable>${d.materials||""}</td>
+<td contenteditable>${d.notes||""}</td>
+<td class="delete" onclick="this.parentElement.remove();renumber();save()">✖</td>`;
   tbody.appendChild(tr);
+  tr.querySelectorAll("select,input,[contenteditable]").forEach(e=>e.oninput=save);
+  enableDrag(tr);
 }
 
-/* ---------- ADD ---------- */
-function addRow() {
-  addRowFromData();
-  renumber();
-  save();
-}
+function addRow(){ addRowFromData(); renumber(); save(); }
+function renumber(){ [...tbody.children].forEach((r,i)=>r.children[0].innerText=i+1); }
 
-/* ---------- ORDER ---------- */
-function renumber() {
-  [...tbody.children].forEach((r, i) => r.children[0].innerText = i + 1);
-}
-
-/* ---------- DRAG ---------- */
-function enableDrag(r) {
-  r.ondragstart = () => { dragged = r; r.classList.add("dragging"); };
-  r.ondragend = () => { r.classList.remove("dragging"); dragged = null; save(); };
-  r.ondragover = e => {
+/* -------- DRAG -------- */
+function enableDrag(r){
+  r.ondragstart=()=>{dragged=r;r.classList.add("dragging")};
+  r.ondragend=()=>{r.classList.remove("dragging");dragged=null;renumber();save()};
+  r.ondragover=e=>{
     e.preventDefault();
-    if (r === dragged) return;
-    const next = e.clientY - r.getBoundingClientRect().top > r.offsetHeight / 2;
-    tbody.insertBefore(dragged, next ? r.nextSibling : r);
+    if(r===dragged) return;
+    const next=e.clientY-r.getBoundingClientRect().top > r.offsetHeight/2;
+    tbody.insertBefore(dragged, next?r.nextSibling:r);
   };
 }
 
